@@ -1,13 +1,7 @@
-import os
 import chromadb
-import tiktoken
-from openai import OpenAI
-from dotenv import load_dotenv
+from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 
-load_dotenv()
-
-MODELO_EMBEDDING = "text-embedding-3-small"
-COSTO_POR_MILLON = 0.02  # USD
+ef = DefaultEmbeddingFunction()
 
 articulos = [
     {"id": "1", "titulo": "FastAPI vs Flask", "contenido": "FastAPI ofrece validación automática con Pydantic, documentación Swagger integrada y mejor rendimiento asíncrono que Flask."},
@@ -21,21 +15,15 @@ articulos = [
 ]
 
 
-def contar_tokens(textos: list) -> int:
-    enc = tiktoken.get_encoding("cl100k_base")
-    return sum(len(enc.encode(t)) for t in textos)
-
-
 def indexar():
-    openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     chroma_client = chromadb.PersistentClient(path="./chroma_db")
 
     collection = chroma_client.get_or_create_collection(
         name="articulos",
-        metadata={"hnsw:space": "cosine"}
+        metadata={"hnsw:space": "cosine"},
+        embedding_function=ef
     )
 
-    # Indexación incremental: omite artículos ya existentes
     existentes = set(collection.get()["ids"])
     nuevos = [art for art in articulos if art["id"] not in existentes]
 
@@ -48,27 +36,15 @@ def indexar():
     ids = [art["id"] for art in nuevos]
     metadatas = [{"titulo": art["titulo"]} for art in nuevos]
 
-    total_tokens = contar_tokens(contenidos)
-    costo = total_tokens * COSTO_POR_MILLON / 1_000_000
-
     print(f"Artículos a indexar: {len(nuevos)}")
-    print(f"Total de tokens procesados: {total_tokens}")
-    print(f"Coste estimado: ${costo:.6f} USD")
-
-    response = openai_client.embeddings.create(
-        model=MODELO_EMBEDDING,
-        input=contenidos
-    )
-    embeddings = [item.embedding for item in response.data]
 
     collection.add(
-        embeddings=embeddings,
         documents=contenidos,
         ids=ids,
         metadatas=metadatas
     )
 
-    print(f"\nIndexados {len(nuevos)} artículos correctamente.")
+    print(f"Indexados {len(nuevos)} artículos correctamente.")
     print(f"Total en colección: {collection.count()}")
 
 

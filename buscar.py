@@ -1,26 +1,14 @@
-import os
 import chromadb
-from openai import OpenAI
-from dotenv import load_dotenv
+from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 
-load_dotenv()
-
-MODELO_EMBEDDING = "text-embedding-3-small"
-
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+ef = DefaultEmbeddingFunction()
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
-collection = chroma_client.get_collection("articulos")
+collection = chroma_client.get_collection("articulos", embedding_function=ef)
 
 
 def buscar(query: str, n_resultados: int = 3) -> list:
-    response = openai_client.embeddings.create(
-        model=MODELO_EMBEDDING,
-        input=[query]
-    )
-    query_embedding = response.data[0].embedding
-
     results = collection.query(
-        query_embeddings=[query_embedding],
+        query_texts=[query],
         n_results=n_resultados
     )
 

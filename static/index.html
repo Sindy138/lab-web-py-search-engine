@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Motor de Búsqueda Semántica</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f0f1a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 16px 80px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #818cf8, #38bdf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+
+    header p {
+      color: #64748b;
+      font-size: 0.95rem;
+    }
+
+    .search-box {
+      width: 100%;
+      max-width: 680px;
+      margin-bottom: 32px;
+    }
+
+    .search-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 14px 18px;
+      border-radius: 12px;
+      border: 1px solid #1e293b;
+      background: #1a1a2e;
+      color: #e2e8f0;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input[type="text"]:focus {
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+
+    button#btn-buscar {
+      padding: 14px 22px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, #6366f1, #38bdf8);
+      color: white;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      white-space: nowrap;
+    }
+
+    button#btn-buscar:hover { opacity: 0.9; }
+    button#btn-buscar:active { transform: scale(0.97); }
+    button#btn-buscar:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .options-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .options-row label {
+      font-size: 0.85rem;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .options-row select {
+      background: #1a1a2e;
+      border: 1px solid #1e293b;
+      color: #e2e8f0;
+      padding: 4px 8px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    .suggestions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-left: auto;
+    }
+
+    .chip {
+      font-size: 0.78rem;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: #1e293b;
+      color: #94a3b8;
+      cursor: pointer;
+      border: 1px solid #334155;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .chip:hover {
+      background: #334155;
+      color: #e2e8f0;
+    }
+
+    #resultados {
+      width: 100%;
+      max-width: 680px;
+    }
+
+    .estado {
+      text-align: center;
+      color: #475569;
+      font-size: 0.9rem;
+      padding: 32px 0;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #334155;
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-bottom: 8px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .result-card {
+      background: #1a1a2e;
+      border: 1px solid #1e293b;
+      border-radius: 14px;
+      padding: 20px 22px;
+      margin-bottom: 14px;
+      transition: border-color 0.2s, transform 0.15s;
+      animation: fadeIn 0.3s ease forwards;
+      opacity: 0;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .result-card:hover {
+      border-color: #334155;
+      transform: translateY(-2px);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      gap: 12px;
+    }
+
+    .card-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #c7d2fe;
+    }
+
+    .score-badge {
+      font-size: 0.75rem;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .score-high   { background: rgba(74, 222, 128, 0.12); color: #4ade80; }
+    .score-medium { background: rgba(251, 191, 36, 0.12); color: #fbbf24; }
+    .score-low    { background: rgba(148, 163, 184, 0.12); color: #94a3b8; }
+
+    .card-content {
+      font-size: 0.875rem;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+
+    .score-bar-track {
+      height: 3px;
+      background: #1e293b;
+      border-radius: 999px;
+      margin-top: 14px;
+      overflow: hidden;
+    }
+
+    .score-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #6366f1, #38bdf8);
+      transition: width 0.6s ease;
+    }
+
+    .results-header {
+      font-size: 0.82rem;
+      color: #475569;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .error-msg {
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      color: #f87171;
+      padding: 14px 18px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Motor de Búsqueda Semántica</h1>
+  <p>Busca entre artículos de tecnología usando embeddings de OpenAI</p>
+</header>
+
+<div class="search-box">
+  <div class="search-row">
+    <input type="text" id="query" placeholder="¿Qué quieres buscar?" autocomplete="off" />
+    <button id="btn-buscar" onclick="buscar()">Buscar</button>
+  </div>
+  <div class="options-row">
+    <label>
+      Resultados:
+      <select id="n-resultados">
+        <option value="3" selected>3</option>
+        <option value="5">5</option>
+        <option value="8">8</option>
+      </select>
+    </label>
+    <div class="suggestions">
+      <span class="chip" onclick="setQuery('¿cómo hacer una API en Python?')">API en Python</span>
+      <span class="chip" onclick="setQuery('diferencias entre frameworks de frontend')">Frontend</span>
+      <span class="chip" onclick="setQuery('cómo funciona la autenticación web')">Autenticación</span>
+      <span class="chip" onclick="setQuery('herramientas para modelos de lenguaje')">LLMs</span>
+    </div>
+  </div>
+</div>
+
+<div id="resultados">
+  <p class="estado">Escribe una búsqueda para empezar.</p>
+</div>
+
+<script>
+  const input = document.getElementById('query');
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') buscar(); });
+
+  function setQuery(text) {
+    input.value = text;
+    input.focus();
+    buscar();
+  }
+
+  function scoreClass(score) {
+    if (score >= 0.55) return 'score-high';
+    if (score >= 0.40) return 'score-medium';
+    return 'score-low';
+  }
+
+  async function buscar() {
+    const q = input.value.trim();
+    if (!q) return;
+
+    const n = document.getElementById('n-resultados').value;
+    const btn = document.getElementById('btn-buscar');
+    const contenedor = document.getElementById('resultados');
+
+    btn.disabled = true;
+    contenedor.innerHTML = `<div class="estado"><div class="spinner"></div><br>Buscando…</div>`;
+
+    try {
+      const res = await fetch(`/buscar?q=${encodeURIComponent(q)}&n=${n}`);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Error en el servidor');
+      }
+      const data = await res.json();
+      renderResultados(data);
+    } catch (err) {
+      contenedor.innerHTML = `<div class="error-msg">Error: ${err.message}</div>`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function renderResultados(data) {
+    const contenedor = document.getElementById('resultados');
+
+    if (!data.resultados.length) {
+      contenedor.innerHTML = `<p class="estado">Sin resultados para "<em>${data.query}</em>".</p>`;
+      return;
+    }
+
+    let html = `<div class="results-header">${data.resultados.length} resultado${data.resultados.length > 1 ? 's' : ''} para "<strong>${escapeHtml(data.query)}</strong>"</div>`;
+
+    data.resultados.forEach((r, i) => {
+      const pct = Math.round(r.score * 100);
+      const cls = scoreClass(r.score);
+      html += `
+        <div class="result-card" style="animation-delay:${i * 60}ms">
+          <div class="card-header">
+            <span class="card-title">${escapeHtml(r.titulo)}</span>
+            <span class="score-badge ${cls}">${pct}% similitud</span>
+          </div>
+          <div class="card-content">${escapeHtml(r.contenido)}</div>
+          <div class="score-bar-track">
+            <div class="score-bar-fill" style="width:${pct}%"></div>
+          </div>
+        </div>`;
+    });
+
+    contenedor.innerHTML = html;
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+</script>
+</body>
+</html>
